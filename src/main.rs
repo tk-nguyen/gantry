@@ -3,9 +3,10 @@ use tracing_subscriber;
 
 use std::env;
 
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{middleware, web, App, HttpServer};
 
 mod endpoints;
+mod manifest;
 use endpoints::*;
 
 #[actix_web::main]
@@ -18,9 +19,13 @@ async fn main() -> Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(middleware::Logger::default())
+            .wrap(middleware::NormalizePath::new(
+                middleware::normalize::TrailingSlash::Trim,
+            ))
             .service(version)
+            .route("/", web::get().to(request_debug))
     })
-    .bind("127.0.0.1:8000")?
+    .bind("0.0.0.0:8000")?
     .run()
     .await?;
 

@@ -2,26 +2,26 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct Config {
-    media_type: String,
-    size: usize,
-    digest: String,
+pub struct Config {
+    pub media_type: String,
+    pub size: Option<usize>,
+    pub digest: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct Layer {
-    media_type: String,
-    size: usize,
-    digest: String,
-    urls: Vec<String>,
+pub struct Layer {
+    pub media_type: String,
+    pub size: Option<usize>,
+    pub digest: String,
+    pub urls: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct ImageManifest {
-    schema_version: u8,
-    media_type: String,
-    config: Config,
-    layers: Vec<Layer>,
+pub struct ImageManifest {
+    pub schema_version: u8,
+    pub media_type: String,
+    pub config: Config,
+    pub layers: Vec<Layer>,
 }

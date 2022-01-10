@@ -380,6 +380,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-buffer"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1d36a02058e76b040de25a4464ba1c80935655595b661505c8b39b664828b95"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "brotli-sys"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -537,6 +546,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-common"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683d6b536309245c849479fba3da410962a43ed8e51c26b729208ec0ac2798d0"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -555,6 +573,17 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 dependencies = [
+ "generic-array",
+]
+
+[[package]]
+name = "digest"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b697d66081d42af4fba142d56918a3cb21dc8eb63372c6b85d14f44fb9c5979b"
+dependencies = [
+ "block-buffer 0.10.0",
+ "crypto-common",
  "generic-array",
 ]
 
@@ -747,7 +776,7 @@ dependencies = [
  "rusty_ulid",
  "serde",
  "serde_json",
- "sha256",
+ "sha2",
  "tracing",
  "tracing-subscriber",
 ]
@@ -833,12 +862,6 @@ checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hostname"
@@ -1519,10 +1542,10 @@ version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99cd6713db3cf16b6c84e06321e049a9b9f699826e16096d23bbcc44d15d51a6"
 dependencies = [
- "block-buffer",
+ "block-buffer 0.9.0",
  "cfg-if 1.0.0",
  "cpufeatures",
- "digest",
+ "digest 0.9.0",
  "opaque-debug",
 ]
 
@@ -1534,25 +1557,13 @@ checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 
 [[package]]
 name = "sha2"
-version = "0.9.9"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d58a1e1bf39749807d89cf2d98ac2dfa0ff1cb3faa38fbb64dd88ac8013d800"
+checksum = "99c3bd8169c58782adad9290a9af5939994036b76187f7b4f0e6de91dbbfc0ec"
 dependencies = [
- "block-buffer",
  "cfg-if 1.0.0",
  "cpufeatures",
- "digest",
- "opaque-debug",
-]
-
-[[package]]
-name = "sha256"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e84a7f596c081d359de5e06a83877138bc3c4483591e1af1916e1472e6e146e"
-dependencies = [
- "hex",
- "sha2",
+ "digest 0.10.1",
 ]
 
 [[package]]

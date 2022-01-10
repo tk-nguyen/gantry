@@ -4,8 +4,6 @@ use tracing_subscriber;
 use std::env;
 
 use actix_web::{middleware, web, App, HttpServer};
-
-mod digest;
 mod endpoints;
 mod manifest;
 use endpoints::*;
@@ -29,7 +27,8 @@ async fn main() -> Result<()> {
                     .service(check_blob)
                     .service(start_upload)
                     .service(write_image)
-                    .service(finish_upload),
+                    .service(finish_upload)
+                    .service(write_manifest),
             )
     })
     .bind("0.0.0.0:8000")?

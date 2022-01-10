@@ -5,11 +5,13 @@ use actix_web::{
 };
 use futures_util::StreamExt;
 use rusty_ulid::generate_ulid_string;
+use serde_json::to_writer_pretty;
 use sha2::{Digest, Sha256};
 use tracing::info;
 
-use std::{fs, fs::OpenOptions, io::Write};
+use std::{fs, fs::File, fs::OpenOptions, io::Write};
 
+use crate::image_digest::ImageDigest;
 use crate::manifest::*;
 
 #[get("/")]
@@ -22,24 +24,32 @@ pub async fn version() -> impl Responder {
 #[head("/{name}/blobs/{digest}")]
 pub async fn check_blob(path: Path<(String, String)>) -> impl Responder {
     let path = path.into_inner();
-    let location = format!("./images/{}", path.0);
-    let metadata = fs::metadata(location.clone()).unwrap();
-    let file = fs::read(location).unwrap();
-    let digest = format!("{:x}", Sha256::digest(file));
-    match digest == path.1.split(":").last().unwrap() {
-        true => HttpResponse::Ok()
-            .header("Content-Length", metadata.len())
-            .header("Docker-Content-Digest", digest)
-            .finish(),
-        false => HttpResponse::Created()
-            .header("Content-Length", 0.to_string())
-            .finish(),
+    let location = format!(
+        "./images/{name}/{digest}",
+        name = path.0,
+        digest = path.1.split(":").last().unwrap()
+    );
+    match fs::metadata(location.clone()) {
+        Ok(metadata) => {
+            let file = fs::read(location).unwrap();
+            let digest = format!("{:x}", Sha256::digest(file));
+            HttpResponse::Ok()
+                .header("Content-Length", metadata.len())
+                .header("Docker-Content-Digest", digest)
+                .finish()
+        }
+        Err(_) => HttpResponse::NotFound().finish(),
     }
 }
 
 #[post("/{name}/blobs/uploads")]
 pub async fn start_upload(path: Path<(String,)>) -> impl Responder {
     let path = path.into_inner();
+    let directory = path.0.as_str();
+    let mut uploaded_images = fs::read_dir("./images").unwrap();
+    if let None = uploaded_images.find(|d| d.as_ref().unwrap().file_name() == directory) {
+        fs::create_dir(format!("./images/{}", path.0)).unwrap();
+    }
     HttpResponse::Accepted()
         .header(
             "Location",
@@ -60,7 +70,11 @@ pub async fn write_image(path: Path<(String, String)>, mut data: Payload) -> imp
     let mut image = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(format!("./images/{name}", name = path.0))
+        .open(format!(
+            "./images/{name}/{ulid}",
+            name = path.0,
+            ulid = path.1
+        ))
         .unwrap();
     let mut bytes = BytesMut::new();
     while let Some(d) = data.next().await {
@@ -84,12 +98,23 @@ pub async fn write_image(path: Path<(String, String)>, mut data: Payload) -> imp
 }
 
 #[put("/{name}/blobs/uploads/{ulid}")]
-pub async fn finish_upload(path: Path<(String, String)>, mut data: Payload) -> impl Responder {
+pub async fn finish_upload(
+    path: Path<(String, String)>,
+    mut data: Payload,
+    query: Query<ImageDigest>,
+) -> impl Responder {
     let path = path.into_inner();
+    let orig = format!("./images/{name}/{ulid}", name = path.0, ulid = path.1);
+    let dest = format!(
+        "./images/{name}/{digest}",
+        name = path.0,
+        digest = query.digest.split(":").last().unwrap()
+    );
+    fs::copy(orig.clone(), dest.clone()).unwrap();
     let mut image = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(format!("./images/{name}", name = path.0))
+        .open(dest.clone())
         .unwrap();
     let mut bytes = BytesMut::new();
     while let Some(d) = data.next().await {
@@ -97,8 +122,20 @@ pub async fn finish_upload(path: Path<(String, String)>, mut data: Payload) -> i
     }
     match image.write(&bytes) {
         Ok(_) => {
-            let content = fs::read(format!("./images/{}", path.0)).unwrap();
+            let content = fs::read(dest).unwrap();
             let digest = format!("{:x}", Sha256::digest(content));
+            let mut mappings = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("mappings.txt")
+                .unwrap();
+            mappings
+                .write(
+                    format!("{name}\t{digest}\n", name = path.0, digest = digest.clone())
+                        .as_bytes(),
+                )
+                .unwrap();
+            fs::remove_file(orig).unwrap();
             HttpResponse::Created()
                 .header(
                     "Location",
@@ -109,7 +146,7 @@ pub async fn finish_upload(path: Path<(String, String)>, mut data: Payload) -> i
                     ),
                 )
                 .header("Content-Length", 0.to_string())
-                // .header("Docker-Content-Digest", digest)
+                .header("Docker-Content-Digest", digest)
                 .finish()
         }
         Err(_) => HttpResponse::InternalServerError().finish(),
@@ -122,25 +159,27 @@ pub async fn write_manifest(
     path: Path<(String, String)>,
 ) -> impl Responder {
     let path = path.into_inner();
-    let location = format!("./images/{}", path.0);
-    let metadata = fs::metadata(location.clone()).unwrap();
-    let content = fs::read(location).unwrap();
-    let digest = format!("{:x}", Sha256::digest(content));
-    let response = ImageManifest {
-        schema_version: 2,
-        media_type: manifest.media_type.clone(),
-        config: Config {
-            media_type: manifest.config.media_type.clone(),
-            size: Some(metadata.len() as usize),
-            digest: format!("sha256:{}", digest),
-        },
-        layers: vec![Layer {
-            media_type: manifest.layers[0].media_type.clone(),
-            size: Some(metadata.len() as usize),
-            digest: format!("sha256:{}", digest),
-            urls: None,
-        }],
-    };
-    info!("{:#?}", response);
-    Json(response)
+    let file = File::create(format!("./images/{}/manifest.json", path.0)).unwrap();
+    to_writer_pretty(file, &manifest.into_inner()).unwrap();
+    let maps = fs::read_to_string("mappings.txt").unwrap();
+
+    // TODO Use a better container (HashMap?)
+    let mappings = maps
+        .lines()
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<&str>>();
+    HttpResponse::Created()
+        .header(
+            "Location",
+            format!(
+                "/v2/{name}/manifests/{reference}",
+                name = path.0,
+                reference = path.1,
+            ),
+        )
+        .header("Content-Length", 0.to_string())
+        .header("Docker-Content-Digest", format!("sha256:{}", mappings[1]))
+        .finish()
 }

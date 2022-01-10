@@ -4,7 +4,9 @@ use tracing_subscriber;
 use std::env;
 
 use actix_web::{middleware, web, App, HttpServer};
+
 mod endpoints;
+mod image_digest;
 mod manifest;
 use endpoints::*;
 

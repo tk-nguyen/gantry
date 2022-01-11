@@ -5,7 +5,7 @@ use actix_web::{
 };
 use futures_util::StreamExt;
 use rusty_ulid::generate_ulid_string;
-use serde_json::to_writer_pretty;
+use serde_json;
 use sha2::{Digest, Sha256};
 use tracing::info;
 
@@ -159,8 +159,36 @@ pub async fn write_manifest(
     path: Path<(String, String)>,
 ) -> impl Responder {
     let path = path.into_inner();
-    let file = File::create(format!("./images/{}/manifest.json", path.0)).unwrap();
-    to_writer_pretty(file, &manifest.into_inner()).unwrap();
+    match File::open(format!("./images/{}/manifest.json", path.0)) {
+        Ok(f) => {
+            let mut current_manifest: ImageManifest = serde_json::from_reader(f).unwrap();
+            let received_manifest = manifest.into_inner();
+            if let Some(_) = received_manifest.config.size {
+                current_manifest.config = received_manifest.config;
+            }
+            if current_manifest.layers.len() < received_manifest.layers.len() {
+                for i in (received_manifest.layers.len() - current_manifest.layers.len() + 1)
+                    ..received_manifest.layers.len()
+                {
+                    let received_layer = &received_manifest.layers[i];
+                    let added_layer = Layer {
+                        media_type: received_layer.media_type.clone(),
+                        size: received_layer.size,
+                        digest: received_layer.digest.clone(),
+                        urls: received_layer.urls.clone(),
+                    };
+                    current_manifest.layers.push(added_layer);
+                }
+            }
+            let file = File::create(format!("./images/{}/manifest.json", path.0)).unwrap();
+            serde_json::to_writer_pretty(file, &current_manifest).unwrap();
+        }
+
+        Err(_) => {
+            let file = File::create(format!("./images/{}/manifest.json", path.0)).unwrap();
+            serde_json::to_writer_pretty(file, &manifest.into_inner()).unwrap();
+        }
+    }
     let maps = fs::read_to_string("mappings.txt").unwrap();
 
     // TODO Use a better container (HashMap?)
